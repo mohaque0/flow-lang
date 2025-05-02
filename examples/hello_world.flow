@@ -1,0 +1,7 @@
+let five = 5.1;
+let eight = 3.1 + five;
+
+fn add(var1, var2) = var1 + var2;
+fn mul(x, y) = x * y;
+
+add(five, mul(eight, 2.0))
