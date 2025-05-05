@@ -1,5 +1,6 @@
 [workspace]
 members = [
     "flow-parser",
+    "flow-parser2",
     "flowi"
 ]
