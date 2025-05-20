@@ -1,6 +1,6 @@
 use chumsky::prelude::*;
 use derive_more::Constructor;
-use std::ops::Range;
+use std::{collections::HashMap, ops::Range};
 
 #[derive(Debug, Clone, Constructor)]
 pub struct DebugInfo {
@@ -11,7 +11,9 @@ pub struct DebugInfo {
 pub enum Value {
     Integer(i64),
     Double(f64),
-    Function(Box<Expr>)
+    Function(Box<Expr>),
+    Enum { name: String, value: Box<Value> },
+    Struct { name: String, fields: HashMap<String, Box<Value>> }
 }
 
 #[derive(Debug, Clone)]
@@ -100,7 +102,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn simple() {
+    fn parse_int() {
+        let result = parser().parse("5");
+
+        match result.unwrap() {
+            Expr::Value(Value::Integer(x), _) => assert_eq!(x, 5),
+            _ => assert!(false)
+        }
+    }
+
+    fn parse_float() {
         let result = parser().parse("5.0");
 
         match result.unwrap() {
