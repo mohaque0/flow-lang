@@ -68,32 +68,28 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Expr> {
             float
             .or(int)
             .or(var)
-            .or(expr.delimited_by(just('('), just(')')));
+            .or(expr.clone().delimited_by(just('('), just(')')));
 
-        atom
-    });
-
-    let decl = recursive(|decl| {
         let r#let = text::keyword("let")
             .ignore_then(ident)
             .then_ignore(just('='))
             .then(expr.clone())
             .then_ignore(just(';'))
-            .then(decl.clone())
+            .then(expr.clone())
+            .then_ignore(just(';').or_not())
             .map_with(|((name, rhs), then): ((&str, Expr), Expr), d| Expr::Let {
                 name: String::from(name),
                 rhs: Box::new(rhs),
                 then: Box::new(then),
                 debug: DebugInfo::from(d.span())
             });
-    
+
         r#let
-            .or(expr)
+            .or(atom)
             .padded()
-    });    
+    });
 
-
-    decl
+    expr
         .then_ignore(end())
 }
 
@@ -111,11 +107,62 @@ mod tests {
         }
     }
 
+    #[test]
     fn parse_float() {
         let result = parser().parse("5.0");
 
         match result.unwrap() {
             Expr::Value(Value::Double(x), _) => assert_eq!(x, 5.0),
+            _ => assert!(false)
+        }
+    }
+
+    #[test]
+    fn parse_var() {
+        let result = parser().parse("5.0");
+
+        match result.unwrap() {
+            Expr::Var(name, _) => assert_eq!(name.as_str(), "x"),
+            _ => assert!(false)
+        }
+    }
+
+    #[test]
+    fn parse_let() {
+        let result = parser().parse("let x = 5.0; x");
+
+        match result.unwrap() {
+            Expr::Let { name, rhs, then, debug: _} => {
+                assert_eq!(name.as_str(), "x");
+                match *rhs {
+                    Expr::Value(Value::Double(x), _) => assert_eq!(x, 5.0),
+                    _ => assert!(false)
+                }
+                match *then {
+                    Expr::Var(name, _) => assert_eq!(name.as_str(), "x"),
+                    _ => assert!(false)
+                }
+            }
+            _ => assert!(false)
+        }
+    }
+
+    #[test]
+    fn parse_let_with_semicolon() {
+        let result = parser().parse("let x = 5.0; x;");
+
+        match result.unwrap() {
+            Expr::Let { name, rhs, then, debug: _} => {
+                assert_eq!(name.as_str(), "x");
+                match *rhs {
+                    Expr::Value(Value::Double(x), _) => assert_eq!(x, 5.0),
+                    _ => assert!(false)
+                }
+                match *then {
+                    Expr::Var(name, _) => assert_eq!(name.as_str(), "x"),
+                    _ => assert!(false)
+                }
+            }
             _ => assert!(false)
         }
     }
