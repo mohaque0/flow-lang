@@ -11,9 +11,7 @@ pub struct DebugInfo {
 pub enum Value {
     Integer(i64),
     Double(f64),
-    Function(Box<Expr>),
-    Enum { name: String, value: Box<Value> },
-    Struct { name: String, fields: HashMap<String, Box<Value>> }
+    String(String)
 }
 
 #[derive(Debug, Clone)]
@@ -26,6 +24,10 @@ pub enum Expr {
     Sub(Box<Expr>, Box<Expr>, DebugInfo),
     Mul(Box<Expr>, Box<Expr>, DebugInfo),
     Div(Box<Expr>, Box<Expr>, DebugInfo),
+
+    Function(Box<Expr>),
+    Enum { name: String, value: Box<Expr> },
+    Struct { name: String, fields: HashMap<String, Box<Expr>> },
 
     Let {
         name: String,
