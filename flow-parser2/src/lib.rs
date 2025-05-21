@@ -20,6 +20,13 @@ pub enum Value {
 pub enum Expr {
     Value(Value, DebugInfo),
     Var(String, DebugInfo),
+
+    Neg(Box<Expr>, DebugInfo),
+    Add(Box<Expr>, Box<Expr>, DebugInfo),
+    Sub(Box<Expr>, Box<Expr>, DebugInfo),
+    Mul(Box<Expr>, Box<Expr>, DebugInfo),
+    Div(Box<Expr>, Box<Expr>, DebugInfo),
+
     Let {
         name: String,
         rhs: Box<Expr>,
@@ -70,6 +77,29 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Expr> {
             .or(var)
             .or(expr.clone().delimited_by(just('('), just(')')));
 
+
+        let op = |c| just(c).padded();
+
+        let unary = op('-')
+            .repeated()
+            .foldr_with(atom.clone(), |_op, rhs, d| Expr::Neg(Box::new(rhs), DebugInfo::from(d.span())));
+
+        let product = unary.clone()
+            .foldl_with(
+                op('*').to(Expr::Mul as fn(_, _, _) -> _)
+                    .or(op('/').to(Expr::Div as fn(_, _, _) -> _))
+                    .then(unary.clone()).repeated(),
+                |lhs, (op, rhs), d| op(Box::new(lhs), Box::new(rhs), DebugInfo::from(d.span()))
+            );
+
+        let sum = product.clone()
+            .foldl_with(
+                op('+').to(Expr::Add as fn(_, _, _) -> _)
+                    .or(op('-').to(Expr::Sub as fn(_, _, _) -> _))
+                    .then(product.clone()).repeated(),
+                |lhs, (op, rhs), d| op(Box::new(lhs), Box::new(rhs), DebugInfo::from(d.span()))
+            );
+
         let r#let = text::keyword("let")
             .ignore_then(ident)
             .then_ignore(just('='))
@@ -86,6 +116,9 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Expr> {
 
         r#let
             .or(atom)
+            .or(unary)
+            .or(product)
+            .or(sum)
             .padded()
     });
 
@@ -119,7 +152,7 @@ mod tests {
 
     #[test]
     fn parse_var() {
-        let result = parser().parse("5.0");
+        let result = parser().parse("x");
 
         match result.unwrap() {
             Expr::Var(name, _) => assert_eq!(name.as_str(), "x"),
