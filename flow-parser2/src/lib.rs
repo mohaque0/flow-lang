@@ -77,18 +77,17 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Expr> {
             .or(var)
             .or(expr.clone().delimited_by(just('('), just(')')));
 
-
         let op = |c| just(c).padded();
 
         let unary = op('-')
             .repeated()
             .foldr_with(atom.clone(), |_op, rhs, d| Expr::Neg(Box::new(rhs), DebugInfo::from(d.span())));
 
-        let product = unary.clone()
+        let product = atom.clone()
             .foldl_with(
                 op('*').to(Expr::Mul as fn(_, _, _) -> _)
                     .or(op('/').to(Expr::Div as fn(_, _, _) -> _))
-                    .then(unary.clone()).repeated(),
+                    .then(atom.clone()).repeated(),
                 |lhs, (op, rhs), d| op(Box::new(lhs), Box::new(rhs), DebugInfo::from(d.span()))
             );
 
@@ -115,10 +114,10 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Expr> {
             });
 
         r#let
-            .or(atom)
-            .or(unary)
-            .or(product)
             .or(sum)
+            .or(product)
+            .or(unary)
+            .or(atom)
             .padded()
     });
 
@@ -156,6 +155,46 @@ mod tests {
 
         match result.unwrap() {
             Expr::Var(name, _) => assert_eq!(name.as_str(), "x"),
+            _ => assert!(false)
+        }
+    }
+
+    #[test]
+    fn parse_unary() {
+        let result = parser().parse("-5");
+
+        match result.unwrap() {
+            Expr::Neg(_, _) => (),
+            _ => assert!(false)
+        }
+    }
+
+    #[test]
+    fn parse_repeated_unary() {
+        let result = parser().parse("-----5");
+
+        match result.unwrap() {
+            Expr::Neg(_, _) => (),
+            _ => assert!(false)
+        }
+    }
+
+    #[test]
+    fn parse_product() {
+        let result = parser().parse("5 * 5");
+
+        match result.unwrap() {
+            Expr::Mul(_, _, _) => (),
+            _ => assert!(false)
+        }
+    }
+
+    #[test]
+    fn parse_sum() {
+        let result = parser().parse("5+x");
+
+        match result.unwrap() {
+            Expr::Add(_, _, _) => (),
             _ => assert!(false)
         }
     }
