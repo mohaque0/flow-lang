@@ -240,4 +240,15 @@ mod tests {
             _ => assert!(false)
         }
     }
+
+    #[test]
+    fn parse_test_program0() {
+        let result = parser().parse("
+            let x = 5.0;
+            let y=3;
+            x*y+2
+        ");
+        result.unwrap();
+    }
+    
 }
