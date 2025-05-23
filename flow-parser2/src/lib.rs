@@ -25,7 +25,7 @@ pub enum Expr {
     Mul(Box<Expr>, Box<Expr>, DebugInfo),
     Div(Box<Expr>, Box<Expr>, DebugInfo),
 
-    Function(Box<Expr>),
+    Function { args: Vec<String>, body: Box<Expr> },
     Enum { name: String, value: Box<Expr> },
     Struct { name: String, fields: HashMap<String, Box<Expr>> },
 
