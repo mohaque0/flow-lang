@@ -1,5 +1,5 @@
 [package]
-name = "flow-parser2"
+name = "flow-parser"
 version = "0.1.0"
 edition = "2021"
 
