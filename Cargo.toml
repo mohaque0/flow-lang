@@ -1,9 +1,9 @@
 [workspace]
 members = [
     "flow-parser-bak",
-    "flow-parser",
+    "flow_parser",
     "flowi"
 ]
 
 [workspace.dependencies]
-flow-parser = { path = "flow-parser" }
+flow_parser = { path = "flow_parser" }
