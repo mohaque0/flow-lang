@@ -124,6 +124,7 @@ dependencies = [
 name = "flowi"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "flow_parser",
 ]
 
