@@ -15,22 +15,6 @@ pub struct FieldId(usize);
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VarId(pub usize);
 
-
-// Are these useful for closures/lambda implementation?
-// Represent a lambda as an expression with captures as bound variables?
-
-pub struct Abstractor {
-    vars: Vec<VarId>,
-    expr: Expr
-}
-
-pub struct Substitution {
-    bind: Vec<Expr>,
-    expr: Abstractor
-}
-
-
-
 #[derive(Debug, Clone, Constructor)]
 pub struct DebugInfo {
     file: FileId,
@@ -58,6 +42,24 @@ pub enum Value {
 }
 
 #[derive(Debug, Clone)]
+pub enum Type {
+    Unit,
+    Integer,
+    Double,
+    String,
+    Function {
+        params: Vec<TypeId>,
+        ret: TypeId
+    },
+    Enum {
+        kinds: HashMap<FieldId, TypeId>
+    },
+    Struct {
+        fields: HashMap<FieldId, TypeId>
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum Expr {
     Value(Value, Option<DebugInfo>),
     Var(VarId),
@@ -73,4 +75,24 @@ pub enum Expr {
         args: Vec<Expr>,
         debug: Option<DebugInfo>
     },
+
+    // Todo:
+    //
+    // Extern {
+    //     lang: ExternLang,
+    //     def: FFI(...)
+    // }
+    //
+    // BuiltIn {}
+}
+
+impl Expr {
+    pub fn unbound_variables(&self) -> Vec<VarId> {
+        match &self {
+            Expr::Value(value, debug_info) => Vec::new(),
+            Expr::Var(var_id) => Vec::from([*var_id]),
+            Expr::Let { bind, expr, debug } => todo!(),
+            Expr::Call { func, args, debug } => todo!(),
+        }
+    }
 }
