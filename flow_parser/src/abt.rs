@@ -1,5 +1,5 @@
 use derive_more::Constructor;
-use std::{collections::HashMap, ops::Range};
+use std::{collections::{BTreeMap, HashMap}, hash::Hash, ops::Range};
 
 // Ids used to index data in context.
 
@@ -15,6 +15,14 @@ pub struct FieldId(usize);
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VarId(pub usize);
 
+
+pub const TYPE_ID_UNIT: TypeId = TypeId(0);
+pub const TYPE_ID_INT: TypeId = TypeId(1);
+pub const TYPE_ID_DOUBLE: TypeId = TypeId(2);
+pub const TYPE_ID_STRING: TypeId = TypeId(3);
+
+
+
 #[derive(Debug, Clone, Constructor)]
 pub struct DebugInfo {
     file: FileId,
@@ -28,11 +36,12 @@ pub enum Value {
     Double(f64),
     String(String),
     Function {
-        params: Vec<VarId>,
+        params: Vec<(VarId, Type)>,
         body: Box<Expr>,
     },
     Enum {
         kind: TypeId,
+        field: FieldId,
         value: Box<Value>,
     },
     Struct {
@@ -41,21 +50,21 @@ pub enum Value {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
     Unit,
     Integer,
     Double,
     String,
     Function {
-        params: Vec<TypeId>,
-        ret: TypeId
+        params: Vec<Type>,
+        ret: Box<Type>
     },
     Enum {
-        kinds: HashMap<FieldId, TypeId>
+        kinds: BTreeMap<FieldId, Type>
     },
     Struct {
-        fields: HashMap<FieldId, TypeId>
+        fields: BTreeMap<FieldId, Type>
     }
 }
 

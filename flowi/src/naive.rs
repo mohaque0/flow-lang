@@ -73,7 +73,7 @@ fn reduce(ctx: &dyn EvalContext, e: &Expr) -> Expr {
                 }
 
                 let mut bindings = HashMap::new();
-                params.iter().zip(args).for_each(|(var_id, var_def)| {
+                params.iter().zip(args).for_each(|((var_id, _type), var_def)| {
                     bindings.insert(*var_id, var_def.clone());
                 });
 
