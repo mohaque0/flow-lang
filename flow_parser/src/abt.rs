@@ -15,14 +15,6 @@ pub struct FieldId(usize);
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VarId(pub usize);
 
-
-pub const TYPE_ID_UNIT: TypeId = TypeId(0);
-pub const TYPE_ID_INT: TypeId = TypeId(1);
-pub const TYPE_ID_DOUBLE: TypeId = TypeId(2);
-pub const TYPE_ID_STRING: TypeId = TypeId(3);
-
-
-
 #[derive(Debug, Clone, Constructor)]
 pub struct DebugInfo {
     file: FileId,
@@ -69,6 +61,11 @@ pub enum Type {
 }
 
 #[derive(Debug, Clone)]
+pub enum Builtin {
+    AddI(VarId, VarId)
+}
+
+#[derive(Debug, Clone)]
 pub enum Expr {
     Value(Value, Option<DebugInfo>),
     Var(VarId),
@@ -85,6 +82,8 @@ pub enum Expr {
         debug: Option<DebugInfo>
     },
 
+    Builtin(Builtin)
+
     // Todo:
     //
     // Extern {
@@ -92,7 +91,7 @@ pub enum Expr {
     //     def: FFI(...)
     // }
     //
-    // BuiltIn {}
+    // 
 }
 
 impl Expr {
@@ -102,6 +101,22 @@ impl Expr {
             Expr::Var(var_id) => Vec::from([*var_id]),
             Expr::Let { bind, expr, debug } => todo!(),
             Expr::Call { func, args, debug } => todo!(),
+            Expr::Builtin(Builtin::AddI(v1, v2)) => Vec::from([*v1,*v2]),
+        }
+    }
+}
+
+impl Type {
+    #[allow(non_snake_case)]
+    fn Function(params: &[Type], ret: Type) -> Type {
+        Type::Function { params: Vec::from(params), ret: Box::new(ret.clone()) }
+    }
+}
+
+impl Builtin {
+    pub fn get_type(&self) -> Type {
+        match &self {
+            Builtin::AddI(_, _) => Type::Function(&[Type::Integer, Type::Integer], Type::Integer),
         }
     }
 }

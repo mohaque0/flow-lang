@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use flow_parser::abt::{Expr, Value, VarId};
+use flow_parser::abt::{Builtin, Expr, Value, VarId};
 
 pub trait EvalContext {
     fn var(&self, var_id: &VarId) -> Option<Value>;
@@ -42,10 +42,11 @@ impl EvalContext for EvalContextImpl  {
 fn reduce(ctx: &dyn EvalContext, e: &Expr) -> Expr {
     match e {
         Expr::Value(value, debug_info) => Expr::Value(value.clone(), debug_info.clone()),
-        Expr::Var(var_id) => Expr::Value(ctx.var(var_id).expect("Compiler must guarantee vars are defined."), None),
+        Expr::Var(var_id) => Expr::Value(ctx.var(var_id).expect(&format!("Compiler must guarantee vars are defined {:?}", var_id)), None),
         Expr::Let { bind, expr, debug } => {
             let mut bindings = HashMap::new();
             let mut unresolved_bindings = 0;
+            
             for (var_id, var_def) in bind {
                 let mut scoped_ctx = ctx.scoped();
                 let reduced_expr = reduce(&mut scoped_ctx, var_def);
@@ -66,7 +67,7 @@ fn reduce(ctx: &dyn EvalContext, e: &Expr) -> Expr {
             }
         },
         Expr::Call { func, args, debug } => {
-            let func = ctx.var(func).expect("Compiler must guarantee vars are defined.");
+            let func = ctx.var(func).expect(&format!("Compiler must guarantee vars are defined {:?}", func));
             if let Value::Function { params, body } = func {
                 if args.len() != params.len() {
                     panic!("Incorrect number of args for function.");
@@ -83,15 +84,24 @@ fn reduce(ctx: &dyn EvalContext, e: &Expr) -> Expr {
                 panic!("Type mismatch. Function was not a function.");
             }
         },
+        Expr::Builtin(Builtin::AddI(v1, v2)) => {
+            let v1 = ctx.var(v1).expect("Undefined var.");
+            let v2 = ctx.var(v2).expect("Undefined var.");
+
+            let v1 = if let Value::Integer(i) = v1 { i } else { panic!("Type mismatch.") };
+            let v2 = if let Value::Integer(i) = v2 { i } else { panic!("Type mismatch.") };
+
+            Expr::Value(Value::Integer(v1 + v2), None)
+        },
     }
 }
 
-pub fn eval(e: Expr) -> Value {
+pub fn eval(e: &Expr) -> Value {
     let mut ctx = EvalContextImpl::new();
-    let mut e = e;
+    let mut e = e.clone();
     loop {
         if let Expr::Value(v, _d) = e {
-            return v
+            return v.clone()
         } else {
             e = reduce(&mut ctx, &e);
         }
@@ -101,16 +111,40 @@ pub fn eval(e: Expr) -> Value {
 #[cfg(test)]
 mod tests {
 
+    use flow_parser::abt::Type;
+
     use super::*;
 
     #[test]
-    fn parse_int() {
+    fn test_let_binding() {
         let expr = Expr::Let { 
             bind: HashMap::from_iter([(VarId(0), Expr::Value(Value::Unit, None))]),
-            expr: Box::new(Expr::Value(Value::Unit, None)),
+            expr: Box::new(Expr::Var(VarId(0))),
             debug: None
         };
 
-        println!("{:?}", eval(expr));
+        let value = eval(&expr);
+
+        //assert_eq!(value, Value::Unit);
+
+        println!("{:?}", value);
+    }
+
+    #[test]
+    fn test_builtin_addi() {
+        let expr = Expr::Let { 
+            bind: HashMap::from_iter([
+                (VarId(0), Expr::Value(Value::Function {
+                    params: Vec::from([(VarId(2), Type::Integer), (VarId(3), Type::Integer)]),
+                    body: Box::new(Expr::Builtin(Builtin::AddI(VarId(2), VarId(3))))
+                }, None)),
+                (VarId(1), Expr::Value(Value::Integer(1), None)),
+                (VarId(2), Expr::Value(Value::Integer(2), None))
+            ]),
+            expr: Box::new(Expr::Call { func: VarId(0), args: Vec::from([Expr::Var(VarId(1)), Expr::Var(VarId(2))]), debug: None }),
+            debug: None
+        };
+
+        println!("{:?}", eval(&expr));
     }
 }
