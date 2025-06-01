@@ -160,9 +160,9 @@ mod tests {
 
         let value = eval(&expr);
 
-        //assert_eq!(value, Value::Unit);
-
         println!("{:?}", value);
+
+        assert_eq!(value, Value::Unit);
     }
 
     #[test]
@@ -189,7 +189,11 @@ mod tests {
             debug: None
         };
 
-        println!("{:?}", eval(&expr));
+        let value = eval(&expr);
+
+        println!("{:?}", value);
+
+        assert_eq!(value, Value::Integer(3));
     }
 
         #[test]
@@ -226,6 +230,10 @@ mod tests {
             debug: None
         };
 
-        println!("{:?}", eval(&expr));
+        let value = eval(&expr);
+
+        println!("{:?}", value);
+
+        assert_eq!(value, Value::Integer(5));
     }
 }

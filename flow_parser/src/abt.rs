@@ -112,6 +112,20 @@ impl Debug for VarId {
     }
 }
 
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Integer(l0), Self::Integer(r0)) => l0 == r0,
+            (Self::Double(l0), Self::Double(r0)) => l0 == r0,
+            (Self::String(l0), Self::String(r0)) => l0 == r0,
+            (Self::Function { .. }, Self::Function { .. }) => false, // Cannot compare functions.
+            (Self::Enum { kind: l_kind, field: l_field, value: l_value }, Self::Enum { kind: r_kind, field: r_field, value: r_value }) => l_kind == r_kind && l_field == r_field && l_value == r_value,
+            (Self::Struct { kind: l_kind, fields: l_fields }, Self::Struct { kind: r_kind, fields: r_fields }) => l_kind == r_kind && l_fields == r_fields,
+            _ => core::mem::discriminant(self) == core::mem::discriminant(other),
+        }
+    }
+}
+
 impl Debug for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
