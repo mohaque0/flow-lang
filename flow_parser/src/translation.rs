@@ -9,7 +9,7 @@ struct TranslationContext {
 
 impl TranslationContext {
     fn fresh_var(&mut self) -> VarId {
-        return VarId(self.next_var_id.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
+        return VarId::new();
     }
 
     fn set_var(&mut self, name: &String, id: VarId) -> Option<VarId> {

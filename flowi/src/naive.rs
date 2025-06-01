@@ -45,16 +45,31 @@ fn reduce(ctx: &dyn EvalContext, e: &Expr) -> Expr {
         Expr::Var(var_id) => Expr::Value(ctx.var(var_id).expect(&format!("Compiler must guarantee vars are defined {:?}", var_id)), None),
         Expr::Let { bind, expr, debug } => {
             let mut bindings = HashMap::new();
+            let mut reduced_bindings = 0;
             let mut unresolved_bindings = 0;
             
+            let mut scoped_ctx = ctx.scoped();
             for (var_id, var_def) in bind {
-                let mut scoped_ctx = ctx.scoped();
-                let reduced_expr = reduce(&mut scoped_ctx, var_def);
-                unresolved_bindings += if let Expr::Value(_, _) = reduced_expr { 0 } else { 1 };
-                bindings.insert(*var_id, reduced_expr);
+                if let Expr::Value(v, _) = var_def {
+                    scoped_ctx.set_var(var_id, v.clone());
+                }
+            }
+
+            for (var_id, var_def) in bind {
+                if var_def.unbound_variables().iter().all(|it| scoped_ctx.var(it).is_some()) {
+                    let reduced_expr = reduce(&scoped_ctx, var_def);
+                    reduced_bindings += 1;
+                    unresolved_bindings += if let Expr::Value(_, _) = reduced_expr { 0 } else { 1 };
+                    bindings.insert(*var_id, reduced_expr);
+                } else {
+                    unresolved_bindings += 1;
+                }
             }
 
             if unresolved_bindings > 0 {
+                if reduced_bindings == 0 {
+                    panic!("Let expression cannot be reduced.")
+                }
                 Expr::Let { bind: bindings, expr: expr.clone(), debug: None }
             } else {
                 let mut scoped_ctx = ctx.scoped();
@@ -68,17 +83,33 @@ fn reduce(ctx: &dyn EvalContext, e: &Expr) -> Expr {
         },
         Expr::Call { func, args, debug } => {
             let func = ctx.var(func).expect(&format!("Compiler must guarantee vars are defined {:?}", func));
-            if let Value::Function { params, body } = func {
+            let func = Expr::Value(func, None);
+            let func = func.with_fresh_vars(&|var| ctx.var(var).is_some());
+
+            let args: Vec<Expr> = args.iter()
+                .map(|it| it.with_fresh_vars(&|var| ctx.var(var).is_some()))
+                .collect();
+
+            if let Expr::Value(Value::Function { params, body }, _) = func {
                 if args.len() != params.len() {
                     panic!("Incorrect number of args for function.");
                 }
 
                 let mut bindings = HashMap::new();
-                params.iter().zip(args).for_each(|((var_id, _type), var_def)| {
+                params.iter().zip(args).for_each(|((var_id, _), var_def)| {
+                    for var in var_def.unbound_variables() {
+                        bindings.insert(var, Expr::Value(ctx.var(&var).expect(&format!("Unknown var {:?}", var)), None));
+                    }
                     bindings.insert(*var_id, var_def.clone());
                 });
 
-                Expr::Let { bind: bindings, expr: body.clone(), debug: None }
+                for var in body.unbound_variables() {
+                    if !bindings.contains_key(&var) {
+                        bindings.insert(var, Expr::Value(ctx.var(&var).expect(&format!("Unknown var {:?}", var)), None));
+                    }
+                }
+
+                Expr::Let { bind: bindings, expr: Box::new(*body), debug: None }
 
             } else {
                 panic!("Type mismatch. Function was not a function.");
@@ -99,11 +130,13 @@ fn reduce(ctx: &dyn EvalContext, e: &Expr) -> Expr {
 pub fn eval(e: &Expr) -> Value {
     let mut ctx = EvalContextImpl::new();
     let mut e = e.clone();
+    println!("{:?}", e);
     loop {
         if let Expr::Value(v, _d) = e {
             return v.clone()
         } else {
             e = reduce(&mut ctx, &e);
+            println!("{:?}", e);
         }
     }
 }
@@ -117,9 +150,11 @@ mod tests {
 
     #[test]
     fn test_let_binding() {
+        let v0 = VarId::new();
+
         let expr = Expr::Let { 
-            bind: HashMap::from_iter([(VarId(0), Expr::Value(Value::Unit, None))]),
-            expr: Box::new(Expr::Var(VarId(0))),
+            bind: HashMap::from_iter([(v0, Expr::Value(Value::Unit, None))]),
+            expr: Box::new(Expr::Var(v0)),
             debug: None
         };
 
@@ -132,16 +167,62 @@ mod tests {
 
     #[test]
     fn test_builtin_addi() {
+        let v0 = VarId::new();
+        let v1 = VarId::new();
+        let v2 = VarId::new();
+        let v3 = VarId::new();
+
         let expr = Expr::Let { 
             bind: HashMap::from_iter([
-                (VarId(0), Expr::Value(Value::Function {
-                    params: Vec::from([(VarId(2), Type::Integer), (VarId(3), Type::Integer)]),
-                    body: Box::new(Expr::Builtin(Builtin::AddI(VarId(2), VarId(3))))
+                (v0, Expr::Value(Value::Function {
+                    params: Vec::from([(v2, Type::Integer), (v3, Type::Integer)]),
+                    body: Box::new(Expr::Builtin(Builtin::AddI(v2, v3)))
                 }, None)),
-                (VarId(1), Expr::Value(Value::Integer(1), None)),
-                (VarId(2), Expr::Value(Value::Integer(2), None))
+                (v1, Expr::Value(Value::Integer(1), None)),
+                (v2, Expr::Value(Value::Integer(2), None))
             ]),
-            expr: Box::new(Expr::Call { func: VarId(0), args: Vec::from([Expr::Var(VarId(1)), Expr::Var(VarId(2))]), debug: None }),
+            expr: Box::new(Expr::Call {
+                func: v0,
+                args: Vec::from([Expr::Var(v1), Expr::Var(v2)]),
+                debug: None
+            }),
+            debug: None
+        };
+
+        println!("{:?}", eval(&expr));
+    }
+
+        #[test]
+    fn test_nested_function() {
+        let v0 = VarId::new();
+        let v1 = VarId::new();
+        let v2 = VarId::new();
+        let v3 = VarId::new();
+
+        let expr = Expr::Let { 
+            bind: HashMap::from_iter([
+                (v0, Expr::Value(Value::Function {
+                    params: Vec::from([(v2, Type::Integer), (v3, Type::Integer)]),
+                    body: Box::new(Expr::Builtin(Builtin::AddI(v2, v3)))
+                }, None)),
+                (v1, Expr::Value(Value::Integer(1), None)),
+                (v2, Expr::Value(Value::Integer(2), None))
+            ]),
+            expr: Box::new(Expr::Call {
+                func: v0,
+                args: Vec::from([
+                    Expr::Call {
+                        func: v0,
+                        args: Vec::from([
+                            Expr::Var(v1),
+                            Expr::Var(v2)
+                        ]),
+                        debug: None
+                    },
+                    Expr::Var(v2)
+                ]),
+                debug: None
+            }),
             debug: None
         };
 
