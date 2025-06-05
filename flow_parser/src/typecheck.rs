@@ -33,8 +33,8 @@ pub fn typecheck(ctx: &TypecheckContext, expr: &Expr) -> Option<Type> {
                                 subctx.known_types.extend(params.iter().cloned());
                                 typecheck(&subctx, body)
                             },
-                            crate::abt::Value::Enum { kind, field, value } => todo!(),
-                            crate::abt::Value::Struct { kind, fields } => todo!(),
+                            crate::abt::Value::Enum { field, value } => todo!(),
+                            crate::abt::Value::Struct { fields } => todo!(),
                         }
             },
         Expr::Var(var_id) => ctx.get_var_type(var_id),

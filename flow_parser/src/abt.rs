@@ -38,12 +38,10 @@ pub enum Value {
         body: Box<Expr>,
     },
     Enum {
-        kind: TypeId,
         field: FieldId,
         value: Box<Value>,
     },
     Struct {
-        kind: TypeId,
         fields: HashMap<FieldId, Box<Value>>,
     },
 }
@@ -63,7 +61,8 @@ pub enum Type {
     },
     Struct {
         fields: BTreeMap<FieldId, Type>
-    }
+    },
+    Ref(TypeId)
 }
 
 #[derive(Debug, Clone)]
@@ -100,6 +99,13 @@ pub enum Expr {
     // 
 }
 
+pub enum Decl {
+    /// Using a TypeId allows recursive types. It also allows differentiation between
+    /// similar sum and product types.
+    Typedef(TypeId, Type),
+    Expr(Expr)
+}
+
 impl VarId {
     pub fn new() -> Self {
         VarId(var_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
@@ -119,8 +125,8 @@ impl PartialEq for Value {
             (Self::Double(l0), Self::Double(r0)) => l0 == r0,
             (Self::String(l0), Self::String(r0)) => l0 == r0,
             (Self::Function { .. }, Self::Function { .. }) => false, // Cannot compare functions.
-            (Self::Enum { kind: l_kind, field: l_field, value: l_value }, Self::Enum { kind: r_kind, field: r_field, value: r_value }) => l_kind == r_kind && l_field == r_field && l_value == r_value,
-            (Self::Struct { kind: l_kind, fields: l_fields }, Self::Struct { kind: r_kind, fields: r_fields }) => l_kind == r_kind && l_fields == r_fields,
+            (Self::Enum { field: l_field, value: l_value }, Self::Enum { field: r_field, value: r_value }) => l_field == r_field && l_value == r_value,
+            (Self::Struct { fields: l_fields }, Self::Struct { fields: r_fields }) => l_fields == r_fields,
             _ => core::mem::discriminant(self) == core::mem::discriminant(other),
         }
     }
@@ -144,8 +150,8 @@ impl Debug for Expr {
                         f.write_str(" => ")?;
                         body.fmt(f)
                     },
-                    Value::Enum { kind, field, value } => todo!(),
-                    Value::Struct { kind, fields } => todo!(),
+                    Value::Enum { field, value } => todo!(),
+                    Value::Struct { fields } => todo!(),
                 }
             },
             Self::Var(v) => f.write_fmt(format_args!("V{}", v.0)),
@@ -224,8 +230,8 @@ impl Expr {
                             .collect();
                         Expr::Value(Value::Function { params, body: Box::new(body.with_mapped_vars(mapping)) }, None)
                     },
-                    Value::Enum { kind, field, value } => todo!(),
-                    Value::Struct { kind, fields } => todo!(),
+                    Value::Enum { field, value } => todo!(),
+                    Value::Struct { fields } => todo!(),
                 }
             },
             Expr::Var(var_id) => Expr::Var(map(var_id)),
@@ -283,8 +289,8 @@ impl Expr {
 
                         Expr::Value(Value::Function { params, body }, d.clone())
                     },
-                    Value::Enum { kind, field, value } => todo!(),
-                    Value::Struct { kind, fields } => todo!(),
+                    Value::Enum { field, value } => todo!(),
+                    Value::Struct { fields } => todo!(),
                 }
             },
             Expr::Var(_) => self.clone(), // Notice, this var is unbound within itself so we do not replace it.

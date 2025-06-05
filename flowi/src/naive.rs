@@ -43,7 +43,7 @@ fn reduce(ctx: &dyn EvalContext, e: &Expr) -> Expr {
     match e {
         Expr::Value(value, debug_info) => Expr::Value(value.clone(), debug_info.clone()),
         Expr::Var(var_id) => Expr::Value(ctx.var(var_id).expect(&format!("Compiler must guarantee vars are defined {:?}", var_id)), None),
-        Expr::Let { bind, expr, debug } => {
+        Expr::Let { bind, expr, .. } => {
             let mut bindings = HashMap::new();
             let mut reduced_bindings = 0;
             let mut unresolved_bindings = 0;
@@ -81,7 +81,7 @@ fn reduce(ctx: &dyn EvalContext, e: &Expr) -> Expr {
                 return reduce(&scoped_ctx, expr);
             }
         },
-        Expr::Call { func, args, debug } => {
+        Expr::Call { func, args, .. } => {
             let func = ctx.var(func).expect(&format!("Compiler must guarantee vars are defined {:?}", func));
             let func = Expr::Value(func, None);
             let func = func.with_fresh_vars(&|var| ctx.var(var).is_some());
