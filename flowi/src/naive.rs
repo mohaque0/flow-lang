@@ -255,7 +255,7 @@ mod tests {
     }
 
     #[test]
-    fn test_builtin_extractfield_struct() {
+    fn test_builtin_extractfield_enum() {
         let f0 = FieldId::new();
         let v0 = VarId::new();
         let v1 = VarId::new();
@@ -264,10 +264,51 @@ mod tests {
         let expr = Expr::Let { 
             bind: HashMap::from_iter([
                 (v0, Expr::Value(Value::Function {
-                    params: Vec::from([(v2, Type::Struct { fields: BTreeMap::from([(f0, Type::Double)]) })]),
+                    params: Vec::from([(v2, Type::Enum { kinds: BTreeMap::from([(f0, Type::Double)]) })]),
                     body: Box::new(Expr::Builtin(Builtin::ExtractField(v2, f0)))
                 }, None)),
-                (v1, Expr::Value(Value::Struct { fields: HashMap::from([(f0, Box::new(Value::Double(1.2)))]) } , None)),
+                (v1, Expr::Value(Value::Enum { field: f0, value: Box::new(Value::Double(1.2)) } , None)),
+            ]),
+            expr: Box::new(Expr::Call {
+                func: v0,
+                args: Vec::from([Expr::Var(v1)]),
+                debug: None
+            }),
+            debug: None
+        };
+
+        let value = eval(&expr);
+
+        println!("{:?}", value);
+
+        assert_eq!(value, Value::Double(1.2));
+    }
+
+    #[test]
+    fn test_builtin_extractfield_struct() {
+        let f0 = FieldId::new();
+        let f1 = FieldId::new();
+        let v0 = VarId::new();
+        let v1 = VarId::new();
+        let v2 = VarId::new();
+
+        let expr = Expr::Let { 
+            bind: HashMap::from_iter([
+                (v0, Expr::Value(Value::Function {
+                    params: Vec::from([(v2, Type::Struct {
+                        fields: BTreeMap::from([
+                            (f0, Type::Double),
+                            (f1, Type::Unit)
+                        ])
+                    })]),
+                    body: Box::new(Expr::Builtin(Builtin::ExtractField(v2, f0)))
+                }, None)),
+                (v1, Expr::Value(Value::Struct {
+                    fields: HashMap::from([
+                        (f0, Box::new(Value::Double(1.2))),
+                        (f1, Box::new(Value::Unit))
+                    ])
+                }, None)),
             ]),
             expr: Box::new(Expr::Call {
                 func: v0,
