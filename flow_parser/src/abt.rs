@@ -1,5 +1,6 @@
+use chumsky::combinator::Collect;
 use derive_more::Constructor;
-use std::{collections::{BTreeMap, HashMap}, fmt::Debug, hash::Hash, ops::Range, sync::atomic::AtomicUsize};
+use std::{collections::{btree_map::Values, BTreeMap, HashMap}, fmt::Debug, hash::Hash, ops::Range, sync::atomic::AtomicUsize};
 use lazy_static::lazy_static;
 
 use crate::typecheck::TypecheckContext;
@@ -168,7 +169,9 @@ impl Debug for Expr {
                         f.write_str(" => ")?;
                         body.fmt(f)
                     },
-                    Value::Enum { field, value } => { todo!() },
+                    Value::Enum { field, value } => { 
+                        f.write_fmt(format_args!("{:?}({:?})", field, *value))
+                     },
                     Value::Struct { fields } => {
                         let mut s = f.debug_struct("");
                         for (field, value) in fields {
@@ -215,7 +218,7 @@ impl Debug for Expr {
 impl Expr {
     pub fn unbound_variables(&self) -> Vec<VarId> {
         match &self {
-            Expr::Value(value, debug_info) => Vec::new(),
+            Expr::Value(_, _) => Vec::new(),
             Expr::Var(var_id) => Vec::from([*var_id]),
             Expr::Let { bind, expr, debug } => {
                 let mut vars = expr.unbound_variables();
@@ -240,6 +243,11 @@ impl Expr {
      */
     fn with_mapped_vars(&self, mapping: &HashMap<VarId, VarId>) -> Expr {
         let map = |v| mapping.get(v).cloned().unwrap_or(*v);
+        let map_value = |value: &Value| {
+            let value = Expr::Value(value.clone(), None).with_mapped_vars(mapping);
+            let value = if let Expr::Value(v, ..) = value { v } else { panic!() };
+            value
+        };
 
         match &self {
             Expr::Value(value, debug_info) => {
@@ -255,8 +263,19 @@ impl Expr {
                             .collect();
                         Expr::Value(Value::Function { params, body: Box::new(body.with_mapped_vars(mapping)) }, None)
                     },
-                    Value::Enum { field, value } => todo!(),
-                    Value::Struct { fields } => todo!(),
+                    Value::Enum { field, value } => {
+                        let value = map_value(value);
+                        Expr::Value(Value::Enum { field: *field, value: Box::new(value) }, None)
+                    },
+                    Value::Struct { fields } => {
+                        let fields = fields.iter()
+                            .map(|(f, v)| {
+                                (*f, Box::new(map_value(v)))
+                            })
+                            .collect();
+
+                        Expr::Value(Value::Struct { fields: fields }, None)
+                    },
                 }
             },
             Expr::Var(var_id) => Expr::Var(map(var_id)),
@@ -291,6 +310,12 @@ impl Expr {
      * This should not change the semantics of the expression.
      */
     pub fn with_fresh_vars(&self, does_var_exist: &dyn Fn(&VarId) -> bool) -> Expr {
+        let map_value = |value: &Value| {
+            let value = Expr::Value(value.clone(), None).with_fresh_vars(does_var_exist);
+            let value = if let Expr::Value(v, ..) = value { v } else { panic!() };
+            value
+        };
+
         match &self {
             Expr::Value(v, d) => {
                 match v {
@@ -315,8 +340,19 @@ impl Expr {
 
                         Expr::Value(Value::Function { params, body }, d.clone())
                     },
-                    Value::Enum { field, value } => todo!(),
-                    Value::Struct { fields } => todo!(),
+                    Value::Enum { field, value } => {
+                        let value = map_value(value);
+                        Expr::Value(Value::Enum { field: *field, value: Box::new(value) }, None)
+                    },
+                    Value::Struct { fields } => {
+                        let fields = fields.iter()
+                            .map(|(f, v)| {
+                                (*f, Box::new(map_value(v)))
+                            })
+                            .collect();
+
+                        Expr::Value(Value::Struct { fields: fields }, None)
+                    },
                 }
             },
             Expr::Var(_) => self.clone(), // Notice, this var is unbound within itself so we do not replace it.
