@@ -2,9 +2,12 @@ use derive_more::Constructor;
 use std::{collections::{BTreeMap, HashMap}, fmt::Debug, hash::Hash, ops::Range, sync::atomic::AtomicUsize};
 use lazy_static::lazy_static;
 
+use crate::typecheck::TypecheckContext;
+
 lazy_static! {
     /// This is an example for using doc comment attributes
     static ref var_counter: AtomicUsize = AtomicUsize::new(0);
+    static ref field_counter: AtomicUsize = AtomicUsize::new(0);
 }
 
 // Ids used to index data in context.
@@ -15,7 +18,7 @@ pub struct FileId(usize);
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TypeId(usize);
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FieldId(usize);
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -67,7 +70,8 @@ pub enum Type {
 
 #[derive(Debug, Clone)]
 pub enum Builtin {
-    AddI(VarId, VarId)
+    AddI(VarId, VarId),
+    ExtractField(VarId, FieldId)
 }
 
 #[derive(Clone)]
@@ -100,10 +104,24 @@ pub enum Expr {
 }
 
 pub enum Decl {
-    /// Using a TypeId allows recursive types. It also allows differentiation between
+    /// Using a TypeId allows recursive types.
+    /// 
+    /// Naming (which is mapped to TypeId) also allows differentiation between
     /// similar sum and product types.
-    Typedef(TypeId, Type),
+    Types(HashMap<TypeId, Type>),
     Expr(Expr)
+}
+
+impl FieldId {
+    pub fn new() -> Self {
+        FieldId(field_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+    }
+}
+
+impl Debug for FieldId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("F{}", self.0))
+    }
 }
 
 impl VarId {
@@ -150,8 +168,14 @@ impl Debug for Expr {
                         f.write_str(" => ")?;
                         body.fmt(f)
                     },
-                    Value::Enum { field, value } => todo!(),
-                    Value::Struct { fields } => todo!(),
+                    Value::Enum { field, value } => { todo!() },
+                    Value::Struct { fields } => {
+                        let mut s = f.debug_struct("");
+                        for (field, value) in fields {
+                            s.field(&format!("{:?}", field), &*value);
+                        }
+                        s.finish()
+                    },
                 }
             },
             Self::Var(v) => f.write_fmt(format_args!("V{}", v.0)),
@@ -206,6 +230,7 @@ impl Expr {
                 vars
             },
             Expr::Builtin(Builtin::AddI(v1, v2)) => Vec::from([*v1,*v2]),
+            Expr::Builtin(Builtin::ExtractField(v, f)) => Vec::from([*v]),
         }
     }
 
@@ -253,6 +278,7 @@ impl Expr {
             Expr::Builtin(builtin) => {
                 Expr::Builtin(match builtin {
                     Builtin::AddI(v0, v1) => Builtin::AddI(map(v0), map(v1)),
+                    Builtin::ExtractField(v, f) => Builtin::ExtractField(map(v), *f),
                 })
             },
         }
@@ -330,9 +356,22 @@ impl Type {
 }
 
 impl Builtin {
-    pub fn get_type(&self) -> Type {
+    pub fn get_type(&self, ctx: &TypecheckContext) -> Option<Type> {
         match &self {
-            Builtin::AddI(_, _) => Type::Function(&[Type::Integer, Type::Integer], Type::Integer),
+            Builtin::AddI(_, _) => Some(Type::Function(&[Type::Integer, Type::Integer], Type::Integer)),
+            Builtin::ExtractField(v, f) => {
+                let t = ctx.get_var_type(v)?;
+                match t {
+                    Type::Unit => todo!(),
+                    Type::Integer => todo!(),
+                    Type::Double => todo!(),
+                    Type::String => todo!(),
+                    Type::Function { params, ret } => todo!(),
+                    Type::Enum { kinds } => todo!(),
+                    Type::Struct { fields } => todo!(),
+                    Type::Ref(type_id) => todo!(),
+                }
+            },
         }
     }
 }

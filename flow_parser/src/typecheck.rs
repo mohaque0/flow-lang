@@ -53,6 +53,6 @@ pub fn typecheck(ctx: &TypecheckContext, expr: &Expr) -> Option<Type> {
                     panic!("TypeMismatch: {:?} is not a function.", ft);
                 }
             },
-        Expr::Builtin(builtin) => return Some(builtin.get_type()),
+        Expr::Builtin(builtin) => return builtin.get_type(ctx),
     }
 }

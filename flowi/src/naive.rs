@@ -124,6 +124,21 @@ fn reduce(ctx: &dyn EvalContext, e: &Expr) -> Expr {
 
             Expr::Value(Value::Integer(v1 + v2), None)
         },
+        Expr::Builtin(Builtin::ExtractField(v, f)) => {
+            let v = ctx.var(v).expect("Undefined var.");
+            match v {
+                Value::Unit => panic!("Type mismatch."),
+                Value::Integer(_) => panic!("Type mismatch."),
+                Value::Double(_) => panic!("Type mismatch."),
+                Value::String(_) => panic!("Type mismatch."),
+                Value::Function { .. } => panic!("Type mismatch."),
+                Value::Enum { field, value } => if field == *f { Expr::Value(*value, None) } else { panic!("Field does not exist on enum type.") },
+                Value::Struct { fields } => {
+                    let value = fields.get(f).expect("Field not on struct.").clone();
+                    Expr::Value(*value, None)
+                },
+            }
+        }
     }
 }
 
@@ -144,7 +159,9 @@ pub fn eval(e: &Expr) -> Value {
 #[cfg(test)]
 mod tests {
 
-    use flow_parser::abt::Type;
+    use std::collections::BTreeMap;
+
+    use flow_parser::abt::{FieldId, Type};
 
     use super::*;
 
@@ -196,7 +213,7 @@ mod tests {
         assert_eq!(value, Value::Integer(3));
     }
 
-        #[test]
+    #[test]
     fn test_nested_function() {
         let v0 = VarId::new();
         let v1 = VarId::new();
@@ -235,5 +252,35 @@ mod tests {
         println!("{:?}", value);
 
         assert_eq!(value, Value::Integer(5));
+    }
+
+    #[test]
+    fn test_builtin_extractfield_struct() {
+        let f0 = FieldId::new();
+        let v0 = VarId::new();
+        let v1 = VarId::new();
+        let v2 = VarId::new();
+
+        let expr = Expr::Let { 
+            bind: HashMap::from_iter([
+                (v0, Expr::Value(Value::Function {
+                    params: Vec::from([(v2, Type::Struct { fields: BTreeMap::from([(f0, Type::Double)]) })]),
+                    body: Box::new(Expr::Builtin(Builtin::ExtractField(v2, f0)))
+                }, None)),
+                (v1, Expr::Value(Value::Struct { fields: HashMap::from([(f0, Box::new(Value::Double(1.2)))]) } , None)),
+            ]),
+            expr: Box::new(Expr::Call {
+                func: v0,
+                args: Vec::from([Expr::Var(v1)]),
+                debug: None
+            }),
+            debug: None
+        };
+
+        let value = eval(&expr);
+
+        println!("{:?}", value);
+
+        assert_eq!(value, Value::Double(1.2));
     }
 }
