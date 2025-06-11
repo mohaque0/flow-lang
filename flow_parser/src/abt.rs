@@ -1,14 +1,12 @@
-use chumsky::combinator::Collect;
 use derive_more::Constructor;
-use std::{collections::{btree_map::Values, BTreeMap, HashMap}, fmt::Debug, hash::Hash, ops::Range, sync::atomic::AtomicUsize};
+use std::{collections::{BTreeMap, HashMap}, fmt::Debug, hash::Hash, ops::Range, sync::atomic::AtomicUsize};
 use lazy_static::lazy_static;
-
-use crate::typecheck::TypecheckContext;
 
 lazy_static! {
     /// This is an example for using doc comment attributes
     static ref var_counter: AtomicUsize = AtomicUsize::new(0);
     static ref field_counter: AtomicUsize = AtomicUsize::new(0);
+    static ref type_counter: AtomicUsize = AtomicUsize::new(0);
 }
 
 // Ids used to index data in context.
@@ -16,7 +14,7 @@ lazy_static! {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FileId(usize);
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TypeId(usize);
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -134,6 +132,18 @@ impl VarId {
 impl Debug for VarId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("V{}", self.0))
+    }
+}
+
+impl TypeId {
+    pub fn new() -> Self {
+        TypeId(type_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+    }
+}
+
+impl Debug for TypeId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("T{}", self.0))
     }
 }
 
@@ -386,28 +396,7 @@ impl Expr {
 
 impl Type {
     #[allow(non_snake_case)]
-    fn Function(params: &[Type], ret: Type) -> Type {
+    pub fn Function(params: &[Type], ret: Type) -> Type {
         Type::Function { params: Vec::from(params), ret: Box::new(ret.clone()) }
-    }
-}
-
-impl Builtin {
-    pub fn get_type(&self, ctx: &TypecheckContext) -> Option<Type> {
-        match &self {
-            Builtin::AddI(_, _) => Some(Type::Function(&[Type::Integer, Type::Integer], Type::Integer)),
-            Builtin::ExtractField(v, f) => {
-                let t = ctx.get_var_type(v)?;
-                match t {
-                    Type::Unit => todo!(),
-                    Type::Integer => todo!(),
-                    Type::Double => todo!(),
-                    Type::String => todo!(),
-                    Type::Function { params, ret } => todo!(),
-                    Type::Enum { kinds } => todo!(),
-                    Type::Struct { fields } => todo!(),
-                    Type::Ref(type_id) => todo!(),
-                }
-            },
-        }
     }
 }
