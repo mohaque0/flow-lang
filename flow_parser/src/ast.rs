@@ -44,7 +44,7 @@ impl From<SimpleSpan> for DebugInfo
     }
 }
 
-pub fn parser<'src>() -> impl Parser<'src, &'src str, Expr> {
+pub fn parser<'src>() -> impl Parser<'src, &'src str, Expr, chumsky::extra::Err<chumsky::error::Rich<'src, char>>> {
     let ident = text::ident()
         .padded();
 

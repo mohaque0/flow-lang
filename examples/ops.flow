@@ -1,0 +1,4 @@
+let five = 5.1;
+let eight = 3.1 + five;
+
+five * eight
