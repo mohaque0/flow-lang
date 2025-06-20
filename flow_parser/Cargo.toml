@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-chumsky="0.10.1"
+chumsky= { workspace = true }
 derive_more= { version = "2.0.1", features = ["constructor"] }
 lazy_static = "1.5.0"

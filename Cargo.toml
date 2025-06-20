@@ -6,4 +6,5 @@ members = [
 ]
 
 [workspace.dependencies]
+chumsky="0.10.1"
 flow_parser = { path = "flow_parser" }
