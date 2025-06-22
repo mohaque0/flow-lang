@@ -1,6 +1,16 @@
 use chumsky::prelude::*;
 use derive_more::Constructor;
+use getset::Getters;
 use std::{collections::HashMap, ops::Range};
+
+use crate::debug::{self, DebugContext, FileId};
+
+#[derive(Getters)]
+#[get = "pub"]
+pub struct ParseContext {
+    files: HashMap<FileId, String>,
+    dbg: DebugContext
+}
 
 #[derive(Debug, Clone, Constructor)]
 pub struct DebugInfo {
@@ -41,6 +51,23 @@ impl From<SimpleSpan> for DebugInfo
 {
     fn from(value: SimpleSpan) -> Self {
         DebugInfo { span: value.into_range() }
+    }
+}
+
+impl ParseContext {
+    pub fn new() -> Self {
+        ParseContext {
+            files: HashMap::new(),
+            dbg: DebugContext::new()
+        }
+    }
+
+    fn read_file(&mut self, path: &str) -> Result<(FileId, &String), String> {
+        let file_contents = std::fs::read_to_string(path).or_else(|e| Err(format!("Could not read file '{}': {}", path, e)))?;
+        let file_id = self.dbg.get_file_id(path);
+        self.files.insert(file_id, file_contents);
+        let file_contents = self.files.get(&file_id).expect("File was just inserted but apparently does not exist.");
+        Ok((file_id, file_contents))
     }
 }
 
@@ -125,6 +152,17 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Expr, chumsky::extra::Err<
 
     expr
         .then_ignore(end())
+}
+
+pub fn parse<'src>(ctx: &'src mut ParseContext, file: &str) -> Result<Expr, debug::Error> {
+    let (file_id, file_contents) = ctx.read_file(file)?;
+    let parse_result: ParseResult<Expr, chumsky::error::Rich<'src, char>> = parser().parse(&file_contents);
+
+    if parse_result.has_errors() {
+        return Err(debug::Error::from_parse_errors(file_id, parse_result.into_errors()));
+    } else {
+        Ok(parse_result.into_output().expect("Checked for result."))
+    }
 }
 
 #[cfg(test)]

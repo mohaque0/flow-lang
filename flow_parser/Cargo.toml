@@ -6,4 +6,6 @@ edition = "2021"
 [dependencies]
 chumsky= { workspace = true }
 derive_more= { version = "2.0.1", features = ["constructor"] }
+getset = "0.1.6"
 lazy_static = "1.5.0"
+string-interner = "0.19.0"

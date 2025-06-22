@@ -1,47 +1,66 @@
-use ariadne::{Cache, Label, Report, Source};
-use chumsky::Parser as _;
+use ariadne::{Label, Report, Source};
 use clap::Parser as _;
-use flow_parser::{ast, translation};
+use flow_parser::{ast::{parse, ParseContext}, translation};
 
 mod naive;
 
 #[derive(clap::Parser)]
 #[command(version, about, long_about = None)]
 struct CliOptions {
-    files: Vec<String>,
+    file: String,
 }
 
 fn main() {
     let cli = CliOptions::parse();
 
-    for file in &cli.files {
-        let filecontents = std::fs::read_to_string(file).expect(&format!("Could not read file: {}", file));
-        let parse_result = ast::parser().parse(&filecontents);
+    let file = &cli.file;
 
-        if parse_result.has_errors() {
-            let errors = parse_result.into_errors();
-            let source = Source::from(&filecontents);
+    let mut ctx = ParseContext::new();
 
-            for error in errors {
+    let result = parse(&mut ctx, &file);
 
-                Report::build(ariadne::ReportKind::Error, (file, error.span().into_range()))
-                    .with_message(error.reason())
-                    .with_label(
-                        Label::new((file, error.span().into_range()))
-                            .with_message(error.reason())
-                    )
-                    .finish()
-                    .print((file, &source))
-                    .unwrap();
-            }
+    if let Err(errors) = result {
+        match errors {
+            flow_parser::debug::Error::Simple(e) => {
+                println!("{}", e);
+            },
+            flow_parser::debug::Error::Site(site_errors) => {
+                for error in site_errors {
 
-            return;
+                    let source = Source::from(ctx.files().get(&error.site().file()).expect("Unknown file id."));
+
+                    Report::build(ariadne::ReportKind::Error, (file, error.site().span().clone()))
+                        .with_message(error.reason())
+                        .with_label(
+                            Label::new((file, error.site().span().clone()))
+                                .with_message(error.reason())
+                        )
+                        .finish()
+                        .print((file, &source))
+                        .unwrap();
+                }
+            },
         }
 
-        let ast = parse_result.output().expect("Failed to parse input");
-        let ctx = translation::TranslationContext::new();
-        let abt = translation::translate(&ctx, ast).expect("Failed to translate AST.");
-        let value = naive::eval(&abt);
-        println!("{:?}", value);
+        return;
     }
+
+    // We already checked errors. This shouldn't happen.
+    let ast = result.expect("Unexpected error parsing input.");
+
+    let ctx = translation::TranslationContext::new();
+    let abt = match translation::translate(&ctx, &ast) {
+        Ok(value) => value,
+        Err(error) => {
+            match error {
+                translation::TranslationError::UndefinedOperation => todo!(),
+                translation::TranslationError::UnknownVariable(_) => todo!(),
+            }
+            return;
+        }
+    };
+
+    let value = naive::eval(&abt);
+    println!("{:?}", value);
+
 }

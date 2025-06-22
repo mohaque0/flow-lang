@@ -2,6 +2,8 @@ use derive_more::Constructor;
 use std::{collections::{BTreeMap, HashMap}, fmt::Debug, hash::Hash, ops::Range, sync::atomic::AtomicUsize};
 use lazy_static::lazy_static;
 
+use crate::debug::Site;
+
 lazy_static! {
     /// This is an example for using doc comment attributes
     static ref var_counter: AtomicUsize = AtomicUsize::new(0);
@@ -10,9 +12,6 @@ lazy_static! {
 }
 
 // Ids used to index data in context.
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FileId(usize);
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TypeId(usize);
@@ -25,8 +24,7 @@ pub struct VarId(usize);
 
 #[derive(Debug, Clone, Constructor)]
 pub struct DebugInfo {
-    file: FileId,
-    span: Range<usize>,
+    site: Site
 }
 
 #[derive(Debug, Clone)]
