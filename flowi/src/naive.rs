@@ -42,7 +42,7 @@ impl EvalContext for EvalContextImpl  {
 fn reduce(ctx: &dyn EvalContext, e: &Expr) -> Expr {
     match e {
         Expr::Value(value, debug_info) => Expr::Value(value.clone(), debug_info.clone()),
-        Expr::Var(var_id) => Expr::Value(ctx.var(var_id).expect(&format!("Compiler must guarantee vars are defined {:?}", var_id)), None),
+        Expr::Var(var_id, debug_info) => Expr::Value(ctx.var(var_id).expect(&format!("Compiler must guarantee vars are defined {:?}", var_id)), None),
         Expr::Let { bind, expr, .. } => {
             let mut bindings = HashMap::new();
             let mut reduced_bindings = 0;
@@ -171,7 +171,7 @@ mod tests {
 
         let expr = Expr::Let { 
             bind: HashMap::from_iter([(v0, Expr::Value(Value::Unit, None))]),
-            expr: Box::new(Expr::Var(v0)),
+            expr: Box::new(Expr::Var(v0, None)),
             debug: None
         };
 
@@ -200,7 +200,7 @@ mod tests {
             ]),
             expr: Box::new(Expr::Call {
                 func: v0,
-                args: Vec::from([Expr::Var(v1), Expr::Var(v2)]),
+                args: Vec::from([Expr::Var(v1, None), Expr::Var(v2, None)]),
                 debug: None
             }),
             debug: None
@@ -235,12 +235,12 @@ mod tests {
                     Expr::Call {
                         func: v0,
                         args: Vec::from([
-                            Expr::Var(v1),
-                            Expr::Var(v2)
+                            Expr::Var(v1, None),
+                            Expr::Var(v2, None)
                         ]),
                         debug: None
                     },
-                    Expr::Var(v2)
+                    Expr::Var(v2, None)
                 ]),
                 debug: None
             }),
@@ -271,7 +271,7 @@ mod tests {
             ]),
             expr: Box::new(Expr::Call {
                 func: v0,
-                args: Vec::from([Expr::Var(v1)]),
+                args: Vec::from([Expr::Var(v1, None)]),
                 debug: None
             }),
             debug: None
@@ -312,7 +312,7 @@ mod tests {
             ]),
             expr: Box::new(Expr::Call {
                 func: v0,
-                args: Vec::from([Expr::Var(v1)]),
+                args: Vec::from([Expr::Var(v1, None)]),
                 debug: None
             }),
             debug: None

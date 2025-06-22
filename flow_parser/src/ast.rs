@@ -1,20 +1,14 @@
 use chumsky::prelude::*;
-use derive_more::Constructor;
 use getset::Getters;
-use std::{collections::HashMap, ops::Range};
+use std::collections::HashMap;
 
-use crate::debug::{self, DebugContext, FileId};
+use crate::debug::{self, DebugContext, DebugInfo, FileId, Site};
 
 #[derive(Getters)]
 #[get = "pub"]
 pub struct ParseContext {
     files: HashMap<FileId, String>,
     dbg: DebugContext
-}
-
-#[derive(Debug, Clone, Constructor)]
-pub struct DebugInfo {
-    span: Range<usize>
 }
 
 #[derive(Debug, Clone)]
@@ -47,10 +41,10 @@ pub enum Expr {
     },
 }
 
-impl From<SimpleSpan> for DebugInfo
+impl From<(FileId, SimpleSpan)> for DebugInfo
 {
-    fn from(value: SimpleSpan) -> Self {
-        DebugInfo { span: value.into_range() }
+    fn from(value: (FileId, SimpleSpan)) -> Self {
+        DebugInfo::new(Site::new(value.0, value.1.into_range()))
     }
 }
 
@@ -71,33 +65,34 @@ impl ParseContext {
     }
 }
 
-pub fn parser<'src>() -> impl Parser<'src, &'src str, Expr, chumsky::extra::Err<chumsky::error::Rich<'src, char>>> {
+pub fn parser<'src>(file_id: FileId) -> impl Parser<'src, &'src str, Expr, chumsky::extra::Err<chumsky::error::Rich<'src, char>>> {
     let ident = text::ident()
         .padded();
 
-    let expr = recursive(|expr| {
+    let expr = recursive(move |expr| {
         let int = text::int(10)
             .map_with(
-                |s: &str, d|
+                move |s: &str, d|
                 Expr::Value(
                     Value::Integer(s.parse().unwrap()),
-                    DebugInfo::from(d.span()))
+                    DebugInfo::from((file_id, d.span()))
                 )
+            )
             .padded();
 
         let float = text::int(10)
                 .then_ignore(just("."))
                 .then(text::int(10))
-                .map_with(|(intpart, decimalpart) : (&str, &str), d| {
+                .map_with(move |(intpart, decimalpart) : (&str, &str), d| {
                     let wholepart = intpart.parse::<f64>().unwrap();
                     let numerator = decimalpart.parse::<f64>().unwrap();
                     let denominator = 10.0f64.powi(decimalpart.len() as i32);
-                    Expr::Value(Value::Double(wholepart + (numerator / denominator)), DebugInfo::from(d.span()))
+                    Expr::Value(Value::Double(wholepart + (numerator / denominator)), DebugInfo::from((file_id, d.span())))
                 })
                 .padded();
 
         let var = text::ident()
-                .map_with(|x: &str, d| Expr::Var(String::from(x), DebugInfo::from(d.span())))
+                .map_with(move |x: &str, d| Expr::Var(String::from(x), DebugInfo::from((file_id, d.span()))))
                 .padded();
 
         let atom =
@@ -110,14 +105,14 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Expr, chumsky::extra::Err<
 
         let unary = op('-')
             .repeated()
-            .foldr_with(atom.clone(), |_op, rhs, d| Expr::Neg(Box::new(rhs), DebugInfo::from(d.span())));
+            .foldr_with(atom.clone(), move |_op, rhs, d| Expr::Neg(Box::new(rhs), DebugInfo::from((file_id, d.span()))));
 
         let product = atom.clone()
             .foldl_with(
                 op('*').to(Expr::Mul as fn(_, _, _) -> _)
                     .or(op('/').to(Expr::Div as fn(_, _, _) -> _))
                     .then(atom.clone()).repeated(),
-                |lhs, (op, rhs), d| op(Box::new(lhs), Box::new(rhs), DebugInfo::from(d.span()))
+                move |lhs, (op, rhs), d| op(Box::new(lhs), Box::new(rhs), DebugInfo::from((file_id, d.span())))
             );
 
         let sum = product.clone()
@@ -125,7 +120,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Expr, chumsky::extra::Err<
                 op('+').to(Expr::Add as fn(_, _, _) -> _)
                     .or(op('-').to(Expr::Sub as fn(_, _, _) -> _))
                     .then(product.clone()).repeated(),
-                |lhs, (op, rhs), d| op(Box::new(lhs), Box::new(rhs), DebugInfo::from(d.span()))
+                move |lhs, (op, rhs), d| op(Box::new(lhs), Box::new(rhs), DebugInfo::from((file_id, d.span())))
             );
 
         let r#let = text::keyword("let")
@@ -135,11 +130,11 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Expr, chumsky::extra::Err<
             .then_ignore(just(';'))
             .then(expr.clone())
             .then_ignore(just(';').or_not())
-            .map_with(|((name, rhs), then): ((&str, Expr), Expr), d| Expr::Let {
+            .map_with(move |((name, rhs), then): ((&str, Expr), Expr), d| Expr::Let {
                 name: String::from(name),
                 rhs: Box::new(rhs),
                 then: Box::new(then),
-                debug: DebugInfo::from(d.span())
+                debug: DebugInfo::from((file_id, d.span()))
             });
 
         r#let
@@ -156,7 +151,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Expr, chumsky::extra::Err<
 
 pub fn parse<'src>(ctx: &'src mut ParseContext, file: &str) -> Result<Expr, debug::Error> {
     let (file_id, file_contents) = ctx.read_file(file)?;
-    let parse_result: ParseResult<Expr, chumsky::error::Rich<'src, char>> = parser().parse(&file_contents);
+    let parse_result: ParseResult<Expr, chumsky::error::Rich<'src, char>> = parser(file_id).parse(&file_contents);
 
     if parse_result.has_errors() {
         return Err(debug::Error::from_parse_errors(file_id, parse_result.into_errors()));
@@ -171,7 +166,8 @@ mod tests {
 
     #[test]
     fn parse_int() {
-        let result = parser().parse("5");
+        let file = DebugContext::new().get_file_id("");
+        let result = parser(file).parse("5");
 
         match result.unwrap() {
             Expr::Value(Value::Integer(x), _) => assert_eq!(x, 5),
@@ -181,7 +177,8 @@ mod tests {
 
     #[test]
     fn parse_float() {
-        let result = parser().parse("5.0");
+        let file = DebugContext::new().get_file_id("");
+        let result = parser(file).parse("5.0");
 
         match result.unwrap() {
             Expr::Value(Value::Double(x), _) => assert_eq!(x, 5.0),
@@ -191,7 +188,8 @@ mod tests {
 
     #[test]
     fn parse_var() {
-        let result = parser().parse("x");
+        let file = DebugContext::new().get_file_id("");
+        let result = parser(file).parse("x");
 
         match result.unwrap() {
             Expr::Var(name, _) => assert_eq!(name.as_str(), "x"),
@@ -201,7 +199,8 @@ mod tests {
 
     #[test]
     fn parse_unary() {
-        let result = parser().parse("-5");
+        let file = DebugContext::new().get_file_id("");
+        let result = parser(file).parse("-5");
 
         match result.unwrap() {
             Expr::Neg(_, _) => (),
@@ -211,7 +210,8 @@ mod tests {
 
     #[test]
     fn parse_repeated_unary() {
-        let result = parser().parse("-----5");
+        let file = DebugContext::new().get_file_id("");
+        let result = parser(file).parse("-----5");
 
         match result.unwrap() {
             Expr::Neg(_, _) => (),
@@ -221,7 +221,8 @@ mod tests {
 
     #[test]
     fn parse_product() {
-        let result = parser().parse("5 * 5");
+        let file = DebugContext::new().get_file_id("");
+        let result = parser(file).parse("5 * 5");
 
         match result.unwrap() {
             Expr::Mul(_, _, _) => (),
@@ -231,7 +232,8 @@ mod tests {
 
     #[test]
     fn parse_sum() {
-        let result = parser().parse("5+x");
+        let file = DebugContext::new().get_file_id("");
+        let result = parser(file).parse("5+x");
 
         match result.unwrap() {
             Expr::Add(_, _, _) => (),
@@ -241,7 +243,8 @@ mod tests {
 
     #[test]
     fn parse_let() {
-        let result = parser().parse("let x = 5.0; x");
+        let file = DebugContext::new().get_file_id("");
+        let result = parser(file).parse("let x = 5.0; x");
 
         match result.unwrap() {
             Expr::Let { name, rhs, then, debug: _} => {
@@ -261,7 +264,8 @@ mod tests {
 
     #[test]
     fn parse_let_with_semicolon() {
-        let result = parser().parse("let x = 5.0; x;");
+        let file = DebugContext::new().get_file_id("");
+        let result = parser(file).parse("let x = 5.0; x;");
 
         match result.unwrap() {
             Expr::Let { name, rhs, then, debug: _} => {
@@ -281,7 +285,8 @@ mod tests {
 
     #[test]
     fn parse_test_program0() {
-        let result = parser().parse("
+        let file = DebugContext::new().get_file_id("");
+        let result = parser(file).parse("
             let x = 5.0;
             let y=3;
             x*y+2

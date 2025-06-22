@@ -1,13 +1,19 @@
 use std::ops::Range;
 
 use chumsky::error::Rich;
+use derive_more::Constructor;
 use getset::{CopyGetters, Getters};
 use string_interner::{symbol::SymbolU32, DefaultBackend, StringInterner};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FileId(SymbolU32);
 
-#[derive(Debug, Clone, Getters, CopyGetters)]
+#[derive(Debug, Clone, Constructor)]
+pub struct DebugInfo {
+    site: Site
+}
+
+#[derive(Debug, Clone, Getters, CopyGetters, Constructor)]
 pub struct Site {
     #[get_copy = "pub"]
     file: FileId,

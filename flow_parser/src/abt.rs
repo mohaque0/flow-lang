@@ -1,8 +1,7 @@
-use derive_more::Constructor;
-use std::{collections::{BTreeMap, HashMap}, fmt::Debug, hash::Hash, ops::Range, sync::atomic::AtomicUsize};
+use std::{collections::{BTreeMap, HashMap}, fmt::Debug, hash::Hash, sync::atomic::AtomicUsize};
 use lazy_static::lazy_static;
 
-use crate::debug::Site;
+use crate::debug::DebugInfo;
 
 lazy_static! {
     /// This is an example for using doc comment attributes
@@ -22,10 +21,6 @@ pub struct FieldId(usize);
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VarId(usize);
 
-#[derive(Debug, Clone, Constructor)]
-pub struct DebugInfo {
-    site: Site
-}
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -74,7 +69,7 @@ pub enum Builtin {
 #[derive(Clone)]
 pub enum Expr {
     Value(Value, Option<DebugInfo>),
-    Var(VarId),
+    Var(VarId, Option<DebugInfo>),
 
     Let {
         bind: HashMap<VarId, Expr>,
@@ -189,7 +184,7 @@ impl Debug for Expr {
                     },
                 }
             },
-            Self::Var(v) => f.write_fmt(format_args!("V{}", v.0)),
+            Self::Var(v, _) => f.write_fmt(format_args!("V{}", v.0)),
             Self::Let { bind, expr, .. } => {
                 f.write_str("let {")?;
                 let mut first = true;
@@ -227,7 +222,7 @@ impl Expr {
     pub fn unbound_variables(&self) -> Vec<VarId> {
         match &self {
             Expr::Value(_, _) => Vec::new(),
-            Expr::Var(var_id) => Vec::from([*var_id]),
+            Expr::Var(var_id, _) => Vec::from([*var_id]),
             Expr::Let { bind, expr, debug } => {
                 let mut vars = expr.unbound_variables();
                 vars.retain(|it| !bind.contains_key(it));
@@ -286,7 +281,7 @@ impl Expr {
                     },
                 }
             },
-            Expr::Var(var_id) => Expr::Var(map(var_id)),
+            Expr::Var(var_id, _) => Expr::Var(map(var_id), None),
             Expr::Let { bind, expr, debug } => {
                 let bind = HashMap::from_iter(bind.iter()
                     .map(|(v, e)| (map(v), e.with_mapped_vars(mapping)))
@@ -363,7 +358,7 @@ impl Expr {
                     },
                 }
             },
-            Expr::Var(_) => self.clone(), // Notice, this var is unbound within itself so we do not replace it.
+            Expr::Var(_, _) => self.clone(), // Notice, this var is unbound within itself so we do not replace it.
             Expr::Let { bind, expr, debug } => {
                 let mappings = HashMap::from_iter(
                     bind

@@ -64,11 +64,11 @@ pub fn translate(ctx: &TranslationContext, ast: &ast::Expr) -> Result<abt::Expr,
                 ast::Value::String(v) => abt::Value::String(v.clone()),
             };
 
-            Ok(abt::Expr::Value(value, None))
+            Ok(abt::Expr::Value(value, Some(debug_info.clone())))
         },
         ast::Expr::Var(v, debug_info) => {
             ctx.get_var(v)
-                .map(|id| abt::Expr::Var(id))
+                .map(|id| abt::Expr::Var(id, Some(debug_info.clone())))
                 .ok_or_else(|| TranslationError::UnknownVariable(v.clone()))
         },
         ast::Expr::Neg(expr, debug_info) => todo!(),

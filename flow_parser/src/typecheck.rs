@@ -102,7 +102,7 @@ pub fn typecheck(ctx: &TypecheckContext, expr: &Expr) -> Option<Type> {
                 },
             }
         },
-        Expr::Var(var_id) => ctx.get_var_type(var_id),
+        Expr::Var(var_id, _) => ctx.get_var_type(var_id),
         Expr::Let { bind, expr, .. } => {
             let mut subctx = ctx.clone();
             bind.iter().for_each(|(v, e)| {
@@ -262,7 +262,7 @@ mod tests {
         ctx.add_var(var_id, var_type.clone());
 
         // Create an expression representing the variable
-        let e = Expr::Var(var_id);
+        let e = Expr::Var(var_id, None);
 
         let t = typecheck(&ctx, &e);
         assert!(t.is_some());
@@ -280,7 +280,7 @@ mod tests {
         // Create an expression representing the variable in a let binding
         let e = Expr::Let {
             bind: HashMap::from([(v0, Expr::Value(Value::Integer(42), None))]),
-            expr: Box::new(Expr::Var(v0)),
+            expr: Box::new(Expr::Var(v0, None)),
             debug: None
         };
 
