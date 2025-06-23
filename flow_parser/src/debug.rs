@@ -8,7 +8,8 @@ use string_interner::{symbol::SymbolU32, DefaultBackend, StringInterner};
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FileId(SymbolU32);
 
-#[derive(Debug, Clone, Constructor)]
+#[derive(Debug, Clone, Constructor, Getters)]
+#[get= "pub"]
 pub struct DebugInfo {
     site: Site
 }
@@ -71,8 +72,12 @@ impl DebugContext {
         }
     }
 
-    pub fn get_file_id(&mut self, file_id: &str) -> FileId {
-        let id = self.interner.get_or_intern(file_id);
+    pub fn get_file_id(&mut self, file_path: &str) -> FileId {
+        let id = self.interner.get_or_intern(file_path);
         FileId(id)
+    }
+
+    pub fn get_file_path(&self, file_id: &FileId) -> Option<String> {
+        self.interner.resolve(file_id.0).map(|s| s.to_string())
     }
 }

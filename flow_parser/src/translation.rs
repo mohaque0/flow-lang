@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{abt::{self, Type, VarId}, ast, typecheck::{typecheck, TypecheckContext}};
+use crate::{abt::{self, Type, VarId}, ast, debug::Site, typecheck::{typecheck, TypecheckContext}};
 
 #[derive(Clone)]
 pub struct TranslationContext {
@@ -40,7 +40,7 @@ impl TranslationContext {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-enum OperatorType {
+pub enum OperatorType {
     Neg(Type),
     Add(Type, Type),
     Sub(Type, Type),
@@ -50,8 +50,18 @@ enum OperatorType {
 
 #[derive(Clone, Debug)]
 pub enum TranslationError {
-    UndefinedOperation,
-    UnknownVariable(String),
+    UndefinedOperation { op: &'static str, a: Option<Site>, b: Option<Site> },
+    UnknownVariable(String, Site),
+}
+
+impl TranslationError {
+    fn UndefinedOperation(op: &'static str, e0: &abt::Expr, e1: &abt::Expr) -> Self {
+        TranslationError::UndefinedOperation {
+            op,
+            a: e0.debug_info().map(|it| it.site().clone()).or(None),
+            b: e1.debug_info().map(|it| it.site().clone()).or(None),
+        }
+    }
 }
 
 
@@ -69,7 +79,7 @@ pub fn translate(ctx: &TranslationContext, ast: &ast::Expr) -> Result<abt::Expr,
         ast::Expr::Var(v, debug_info) => {
             ctx.get_var(v)
                 .map(|id| abt::Expr::Var(id, Some(debug_info.clone())))
-                .ok_or_else(|| TranslationError::UnknownVariable(v.clone()))
+                .ok_or_else(|| TranslationError::UnknownVariable(v.clone(), debug_info.site().clone()))
         },
         ast::Expr::Neg(expr, debug_info) => todo!(),
         ast::Expr::Add(e0, e1, debug_info) => {
@@ -80,7 +90,7 @@ pub fn translate(ctx: &TranslationContext, ast: &ast::Expr) -> Result<abt::Expr,
             let t1 = typecheck(ctx.get_typechecking_context(), &e1);
 
             if t0 == None || t1 == None {
-                return Err(TranslationError::UndefinedOperation);
+                return Err(TranslationError::UndefinedOperation("+", &e0, &e1));
             }
 
             let (t0, t1) = (t0.expect("Checked."), t1.expect("Checked."));
@@ -88,7 +98,7 @@ pub fn translate(ctx: &TranslationContext, ast: &ast::Expr) -> Result<abt::Expr,
             if let Some(op) = ctx.get_op(&OperatorType::Add(t0, t1)) {
                 Ok(abt::Expr::Call { func: op, args: vec![e0, e1], debug: None })
             } else {
-                Err(TranslationError::UndefinedOperation)
+                Err(TranslationError::UndefinedOperation("+", &e0, &e1))
             }
         },
         ast::Expr::Sub(e0, e1, debug_info) => todo!(),

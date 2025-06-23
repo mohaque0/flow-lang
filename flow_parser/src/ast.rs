@@ -41,6 +41,26 @@ pub enum Expr {
     },
 }
 
+impl Expr {
+    pub fn debug_info(&self) -> &DebugInfo {
+        match &self {
+            Expr::Value(_, debug_info) => debug_info,
+            Expr::Var(_, debug_info) => debug_info,
+            Expr::Neg(_, debug_info) => debug_info,
+            Expr::Add(_, _, debug_info) => debug_info,
+            Expr::Sub(_, _, debug_info) => debug_info,
+            Expr::Mul(_, _, debug_info) => debug_info,
+            Expr::Div(_, _, debug_info) => debug_info,
+            Expr::Function { body, .. } => body.debug_info(),
+            Expr::Enum { value, .. } => value.debug_info(),
+            Expr::Struct { fields, .. } => {
+                fields.values().next().unwrap().debug_info()
+            },
+            Expr::Let { debug, .. } => debug,
+        }
+    }
+}
+
 impl From<(FileId, SimpleSpan)> for DebugInfo
 {
     fn from(value: (FileId, SimpleSpan)) -> Self {

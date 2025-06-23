@@ -219,6 +219,16 @@ impl Debug for Expr {
 }
 
 impl Expr {
+    pub fn debug_info(&self) -> Option<DebugInfo> {
+        match &self {
+            Expr::Value(_, debug_info) => debug_info.clone(),
+            Expr::Var(_, debug_info) => debug_info.clone(),
+            Expr::Let { bind: _, expr: _, debug } => debug.clone(),
+            Expr::Call { func: _, args: _, debug } => debug.clone(),
+            Expr::Builtin(_) => None,
+        }
+    }
+
     pub fn unbound_variables(&self) -> Vec<VarId> {
         match &self {
             Expr::Value(_, _) => Vec::new(),
