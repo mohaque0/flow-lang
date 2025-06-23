@@ -56,20 +56,17 @@ fn main() {
         Ok(value) => value,
         Err(error) => {
             match error {
-                translation::TranslationError::UndefinedOperation { op, a, b } => {
+                translation::TranslationError::UndefinedOperation { op, a, b , ta, tb } => {
 
-                    let mut cache = FileCache::default();
                     let mut filename_a = None;
                     let mut filename_b = None;
                     if let Some(s) = a.clone() {
                         if let Some(filename) = pctx.dbg().get_file_path(&s.file()) {
-                            cache.fetch(Path::new(&filename));
                             filename_a = Some(filename);
                         }
                     }
                     if let Some(s) = b.clone() {
                         if let Some(filename) = pctx.dbg().get_file_path(&s.file()) {
-                            cache.fetch(Path::new(&filename));
                             filename_b = Some(filename);
                         }
                     }
@@ -82,17 +79,17 @@ fn main() {
                             std::fs::read_to_string(path)
                         });
 
-                        let a = a.unwrap();
-                        let b = b.unwrap();
+                        let a_span = a.unwrap().span().clone();
+                        let b_span = b.unwrap().span().clone();
 
-                        Report::build(ariadne::ReportKind::Error, (filename_a.clone(), a.span().clone()))
+                        Report::build(ariadne::ReportKind::Error, (filename_a.clone(), a_span.clone()))
                             .with_message(format!("undefined operation: {op}"))
                             .with_labels(
                                 [
-                                    Label::new((filename_a, a.span().clone()))
-                                        .with_message("between this"),
-                                    Label::new((filename_b, b.span().clone()))
-                                        .with_message("and this"),
+                                    Label::new((filename_a, a_span))
+                                        .with_message(format!("between this of {}", ta.map_or("unknown type.".to_string(), |it| format!("type {it:?}.")))),
+                                    Label::new((filename_b, b_span))
+                                        .with_message(format!("and this of {}", tb.map_or("unknown type.".to_string(), |it| format!("type {it:?}.")))),
                                 ]
                             )
                             .finish()

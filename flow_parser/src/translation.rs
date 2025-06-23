@@ -50,16 +50,18 @@ pub enum OperatorType {
 
 #[derive(Clone, Debug)]
 pub enum TranslationError {
-    UndefinedOperation { op: &'static str, a: Option<Site>, b: Option<Site> },
+    UndefinedOperation { op: &'static str, a: Option<Site>, b: Option<Site>, ta: Option<Type>, tb: Option<Type> },
     UnknownVariable(String, Site),
 }
 
 impl TranslationError {
-    fn UndefinedOperation(op: &'static str, e0: &abt::Expr, e1: &abt::Expr) -> Self {
+    fn UndefinedOperation(op: &'static str, e0: &abt::Expr, e1: &abt::Expr, t0: Option<Type>, t1: Option<Type>) -> Self {
         TranslationError::UndefinedOperation {
             op,
             a: e0.debug_info().map(|it| it.site().clone()).or(None),
             b: e1.debug_info().map(|it| it.site().clone()).or(None),
+            ta: t0,
+            tb: t1,
         }
     }
 }
@@ -90,15 +92,15 @@ pub fn translate(ctx: &TranslationContext, ast: &ast::Expr) -> Result<abt::Expr,
             let t1 = typecheck(ctx.get_typechecking_context(), &e1);
 
             if t0 == None || t1 == None {
-                return Err(TranslationError::UndefinedOperation("+", &e0, &e1));
+                return Err(TranslationError::UndefinedOperation("+", &e0, &e1, t0, t1));
             }
 
             let (t0, t1) = (t0.expect("Checked."), t1.expect("Checked."));
             
-            if let Some(op) = ctx.get_op(&OperatorType::Add(t0, t1)) {
+            if let Some(op) = ctx.get_op(&OperatorType::Add(t0.clone(), t1.clone())) {
                 Ok(abt::Expr::Call { func: op, args: vec![e0, e1], debug: None })
             } else {
-                Err(TranslationError::UndefinedOperation("+", &e0, &e1))
+                Err(TranslationError::UndefinedOperation("+", &e0, &e1, Some(t0), Some(t1)))
             }
         },
         ast::Expr::Sub(e0, e1, debug_info) => todo!(),
