@@ -22,10 +22,6 @@ impl TranslationContext {
         return &self.typechecking_context;
     }
 
-    fn fresh_var(&mut self) -> VarId {
-        return VarId::new();
-    }
-
     fn set_var(&mut self, name: &String, id: VarId, t: &Type) {
         self.scoped_vars.insert(name.clone(), id);
         self.typechecking_context.add_var(id.clone(), t.clone());
@@ -57,6 +53,7 @@ pub enum TranslationError {
 }
 
 impl TranslationError {
+    #[allow(non_snake_case)]
     fn UndefinedOperation(op: &'static str, e0: &abt::Expr, e1: &abt::Expr, t0: Option<Type>, t1: Option<Type>) -> Self {
         TranslationError::UndefinedOperation {
             op,
@@ -141,8 +138,3 @@ pub fn translate(ctx: &TranslationContext, ast: &ast::Expr) -> Result<abt::Expr,
         },
     }
 }
-
-
-// pub fn translate(ast: &ast::Expr) -> abt::Expr {
-    
-// }
