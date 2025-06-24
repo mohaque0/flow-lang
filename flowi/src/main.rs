@@ -1,6 +1,4 @@
-use std::path::{Path, PathBuf};
-
-use ariadne::{Cache as _, FileCache, FnCache, Label, Report, Source};
+use ariadne::{FnCache, Label, Report, Source};
 use clap::Parser as _;
 use flow_parser::{ast::{parse, ParseContext}, translation};
 
@@ -99,9 +97,34 @@ fn main() {
                         todo!()
                     }
                 },
-                translation::TranslationError::UnknownVariable(_, site) => {
+                translation::TranslationError::UndefinedVariable(name, site) => {
+                    let msg = format!("Variable {name} is not defined.");
+                    let source = Source::from(pctx.dbg().get_file_path(&site.file()).expect("Unknown file id."));
 
+                    Report::build(ariadne::ReportKind::Error, (filename, site.span().clone()))
+                        .with_message(&msg)
+                        .with_label(
+                            Label::new((filename, site.span().clone()))
+                                .with_message(&msg)
+                        )
+                        .finish()
+                        .print((filename, &source))
+                        .unwrap();
                 },
+                translation::TranslationError::VariableTypeUnknown(name, site) => {
+                    let msg = format!("Variable {name} has unknown type.");
+                    let source = Source::from(pctx.dbg().get_file_path(&site.file()).expect("Unknown file id."));
+
+                    Report::build(ariadne::ReportKind::Error, (filename, site.span().clone()))
+                        .with_message(&msg)
+                        .with_label(
+                            Label::new((filename, site.span().clone()))
+                                .with_message(&msg)
+                        )
+                        .finish()
+                        .print((filename, &source))
+                        .unwrap();
+                }
             }
             return;
         }

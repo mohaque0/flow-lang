@@ -26,8 +26,9 @@ impl TranslationContext {
         return VarId::new();
     }
 
-    fn set_var(&mut self, name: &String, id: VarId) -> Option<VarId> {
-        self.scoped_vars.insert(name.clone(), id)
+    fn set_var(&mut self, name: &String, id: VarId, t: &Type) {
+        self.scoped_vars.insert(name.clone(), id);
+        self.typechecking_context.add_var(id.clone(), t.clone());
     }
 
     fn get_var(&self, name: &String) -> Option<VarId> {
@@ -51,7 +52,8 @@ pub enum OperatorType {
 #[derive(Clone, Debug)]
 pub enum TranslationError {
     UndefinedOperation { op: &'static str, a: Option<Site>, b: Option<Site>, ta: Option<Type>, tb: Option<Type> },
-    UnknownVariable(String, Site),
+    UndefinedVariable(String, Site),
+    VariableTypeUnknown(String, Site),
 }
 
 impl TranslationError {
@@ -81,7 +83,7 @@ pub fn translate(ctx: &TranslationContext, ast: &ast::Expr) -> Result<abt::Expr,
         ast::Expr::Var(v, debug_info) => {
             ctx.get_var(v)
                 .map(|id| abt::Expr::Var(id, Some(debug_info.clone())))
-                .ok_or_else(|| TranslationError::UnknownVariable(v.clone(), debug_info.site().clone()))
+                .ok_or_else(|| TranslationError::UndefinedVariable(v.clone(), debug_info.site().clone()))
         },
         ast::Expr::Neg(expr, debug_info) => todo!(),
         ast::Expr::Add(e0, e1, debug_info) => {
@@ -115,9 +117,19 @@ pub fn translate(ctx: &TranslationContext, ast: &ast::Expr) -> Result<abt::Expr,
 
             let var_id = VarId::new();
             let var_def = rhs;
+            let var_type = match typecheck(ctx.get_typechecking_context(), &var_def) {
+                Some(t) => t,
+                None => {
+                    let site = match var_def.debug_info() {
+                        Some(debug_info) => debug_info.site().clone(),
+                        None => debug.site().clone()
+                    };
+                    return Err(TranslationError::VariableTypeUnknown(name.clone(), site))
+                }
+            };
 
             let mut subctx: TranslationContext = ctx.clone();
-            subctx.set_var(name, var_id); // TODO: Must add to typechecking context as well.
+            subctx.set_var(name, var_id, &var_type);
 
             let then = translate(&subctx, then)?;
 

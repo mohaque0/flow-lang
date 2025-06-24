@@ -35,7 +35,7 @@ impl TypecheckContext {
         self.type_references.insert(id, t);
     }
 
-    fn add_var(&mut self, var_id: VarId, var_type: Type) {
+    pub fn add_var(&mut self, var_id: VarId, var_type: Type) {
         self.known_var_types.insert(var_id, var_type);
     }
 
